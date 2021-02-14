@@ -14,7 +14,7 @@ class puppet_cluster{
     async start_cluster () {
         this.cluster_instance = await Cluster.Cluster.launch({
             concurrency : Cluster.Cluster.CONCURRENCY_PAGE,
-            maxConcurrency : 20,
+            maxConcurrency : 40,
             puppeteerOptions : {
                 args: [
                     "--no-sandbox",
@@ -36,8 +36,6 @@ class puppet_cluster{
                 top: `${data.config['margin-top']}px`,
                 bottom: `${data.config['margin-bottom']}px`
             },pageRanges: data.config['page_ranges'] != null ? `${data.config['page_ranges']}` : '', path: `${data.filename}`})
-        }).then(data => {
-            console.log(data)
         })
     }
 

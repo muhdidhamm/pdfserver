@@ -136,7 +136,66 @@ router.get('/MultiplePdf', async(req,res,next) => {
     res.send(mainFileName).status(200)
 })
 
-router.post('/MultiplePdfCluster', async(req,res,next) => {
+// router.post('/MultiplePdfCluster', async(req,res,next) => {
+//     // Single PDF Generator
+
+//     /*  1st Iteration
+//         - Generate a random file name
+//         - Fetch html object from api {List}
+//         - Feed the html object to puppeteer
+//         - Create PDF and save it using the file name generated
+//         - Send the filename to the client
+//     */
+//     // console.log(req.body)
+//     let jsonbody = JSON.parse(req.body.data)
+//     let executeFile = jsonbody.final_template
+//     let listoffile = []
+//     let mainFileName = `${Math.random().toString(36).substr(3)}_puppet.pdf`
+//     let mainFilePath = `/home/frappe/frappe-bench/sites/site1.local/public/files/${mainFileName}`
+    
+//     let request = executeFile.map(async (value, index) => {
+//         // Generate random file name
+//         let filename = `${Math.random().toString(36).substr(3)}_puppet_${index}_.pdf`
+//         let html_template = value.html_object
+//         let pup = req.puppeter
+
+//         await pup.execute_task({
+//             "html_template": html_template,
+//             "filename": `/home/frappe/frappe-bench/sites/site1.local/public/files/${filename}`,
+//             "config": jsonbody.print_config
+//         }).then(data => {
+//             listoffile.push(`/home/frappe/frappe-bench/sites/site1.local/public/files/${filename}`)
+//         }).catch(error => {
+//             console.log(error)
+//         })
+        
+//         // return true
+//     })
+    
+//     Promise.all(request).then(data => {
+//         console.log("inside requres")
+//         console.log(listoffile)
+//         // Sort File first
+//         listoffile.sort((a,b) => {
+//             split_a = parseInt(a.split('_')[2])
+//             split_b = parseInt(b.split('_')[2])
+
+//             return split_a - split_b
+//         })
+
+//         console.log('after sort')
+//         console.log(listoffile)
+//         PDFMerge(listoffile, mainFilePath).then(data => {
+//             res.send(mainFileName).status(200)
+//         }).catch(error => {
+//             console.log(error)
+//             res.send('Please try again later').status(400)
+//         })
+//     })
+// })
+
+router.post('/MultiplePdfCluster', async (req, res, next) => {
+    
     // Single PDF Generator
 
     /*  1st Iteration
@@ -152,43 +211,98 @@ router.post('/MultiplePdfCluster', async(req,res,next) => {
     let listoffile = []
     let mainFileName = `${Math.random().toString(36).substr(3)}_puppet.pdf`
     let mainFilePath = `/home/frappe/frappe-bench/sites/site1.local/public/files/${mainFileName}`
-    
-    let request = executeFile.map(async value => {
-        // Generate random file name
-        let filename = `${Math.random().toString(36).substr(3)}_puppet.pdf`
-        let html_template = value.html_object
-        let pup = req.puppeter
 
-        await pup.execute_task({
-            "html_template": html_template,
-            "filename": `/home/frappe/frappe-bench/sites/site1.local/public/files/${filename}`,
-            "config": jsonbody.print_config
-        }).then(data => {
-            listoffile.push(`/home/frappe/frappe-bench/sites/site1.local/public/files/${filename}`)
-        }).catch(error => {
-            console.log(error)
+    try {
+        // Send request back to server
+        res.sendStatus(200)
+
+        let request = executeFile.map(async (value, index) => {
+            // Generate random file name
+            let filename = `${Math.random().toString(36).substr(3)}_puppet_${index}_.pdf`
+            let html_template = value.html_object
+            let pup = req.puppeter
+
+            await pup.execute_task({
+                "html_template": html_template,
+                "filename": `/home/frappe/frappe-bench/sites/site1.local/public/files/${filename}`,
+                "config": jsonbody.print_config
+            }).then(data => {
+                listoffile.push(`/home/frappe/frappe-bench/sites/site1.local/public/files/${filename}`)
+            }).catch(error => {
+                console.log(error)
+            })
+
+            // return true
         })
-        
-        // return true
-    })
-    
-    Promise.all(request).then(data => {
-        console.log("inside requres")
-        console.log(listoffile)
-        PDFMerge(listoffile, mainFilePath).then(data => {
-            res.send(mainFileName).status(200)
-        }).catch(error => {
-            console.log(error)
-            res.send('Please try again later').status(400)
+
+        Promise.all(request).then(data => {
+            console.log("inside requres")
+            console.log(listoffile)
+            // Sort File first
+            listoffile.sort((a, b) => {
+                split_a = parseInt(a.split('_')[2])
+                split_b = parseInt(b.split('_')[2])
+
+                return split_a - split_b
+            })
+
+            console.log('after sort')
+            console.log(listoffile)
+            PDFMerge(listoffile, mainFilePath).then(async (data) => {
+                // res.send(mainFileName).status(200)
+                // Communicate back to the server
+                let body = {
+                    status : 'Success',
+                    filename : mainFileName
+                }
+
+                await send_bulk_pdf_resp(jsonbody.document_id, body.status, body.filename)
+                console.log("Send Succesnfully")
+            }).catch(async (error) => {
+                // console.log(error)
+                // res.send('Please try again later').status(400)
+
+                let body = {
+                    status : 'Failed',
+                    error_message : 'Unable to create PDF. PDF Function failed'
+                }
+
+                await send_bulk_pdf_resp(jsonbody.document_id, body.status, body.error_message)
+                console.log("Send Failed")
+            })
         })
-    })
+    } catch (error) {
+        // Communicate back to the error page
+        let body = {
+            status : 'Failed',
+            error_message : 'Function outside has failed'
+        }
+        console.log("Send Failed")
+        await send_bulk_pdf_resp(jsonbody.document_id, body.status, body.error_message)
+    }
+
 })
+
+async function send_bulk_pdf_resp(bulk_id,status,message){
+    let instance = await axios({
+        method: 'POST',
+        url: 'https://go.setiaawan.com/api/method/property_sales.property_sales.doctype.property_sales.test_pdf_template.pdf_server_endpoint',
+        headers: { 'Authorization': `Basic ${Buffer.from(`4d5376932b92440:560c7815bce3a83`).toString('base64')}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+        data: querystring.stringify({
+            bulk_id: bulk_id,
+            status : status,
+            message: message
+        })
+    }).catch(error => {
+        console.log(error)
+    })
+}
 
 async function getDataFromServer(document_name, print_format,document_type){
     let instance = await axios({
         method: 'GET',
         url: 'https://go.setiaawan.com/api/method/property_sales.property_sales.doctype.property_sales.test_pdf_template.create_html_template',
-        headers: { 'Authorization': `Basic ${Buffer.from(`f35fa73bc038583:7ba9eaaa92a0150`).toString('base64')}`, 'Content-Type': 'application/x-www-form-urlencoded'},
+        headers: { 'Authorization': `Basic ${Buffer.from(`4d5376932b92440:560c7815bce3a83`).toString('base64')}`, 'Content-Type': 'application/x-www-form-urlencoded'},
         data: querystring.stringify({
             print_format: print_format,
             property_name: document_name,
