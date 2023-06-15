@@ -14,15 +14,17 @@ class puppet_cluster{
     async start_cluster () {
         this.cluster_instance = await Cluster.Cluster.launch({
             concurrency : Cluster.Cluster.CONCURRENCY_PAGE,
-            maxConcurrency : 40,
+            maxConcurrency : 20,
             puppeteerOptions : {
                 args: [
                     "--no-sandbox",
                     "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage"
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu"
                     ],
                 headless: true
             },
+            timeout: 120000
         })
     }
 
@@ -44,6 +46,8 @@ class puppet_cluster{
             try{
                 await this.cluster_instance.execute(data).then(data2 => {
                     resolve("success")
+                }).catch(error => {
+                    console.log(error)
                 })
                 
             } catch (error) {

@@ -2,6 +2,8 @@ let express = require('express');
 let PDFMerge = require('pdfmerge')
 let router = express.Router();
 let axios = require('axios').default
+let fs = require('fs')
+let path = require('path');
 const querystring = require('querystring');
 
 const puppeteer = require('puppeteer');
@@ -205,9 +207,13 @@ router.post('/MultiplePdfCluster', async (req, res, next) => {
         - Create PDF and save it using the file name generated
         - Send the filename to the client
     */
-    console.log(req.body)
+    // console.log(req.body)
     let jsonbody = JSON.parse(req.body.data)
-    let executeFile = jsonbody.final_template
+    // console.log(req.body)
+    // let executeFile = jsonbody.final_template
+    let jsonPath = path.join('/home/frappe/frappe-bench/sites',jsonbody.path)
+    let jsoncontent = JSON.parse(fs.readFileSync(jsonPath, 'utf8'))
+    let executeFile = jsoncontent.final_template
     let listoffile = []
     let mainFileName = `${Math.random().toString(36).substr(3)}_puppet.pdf`
     let mainFilePath = `/home/frappe/frappe-bench/sites/site1.local/public/files/${mainFileName}`
@@ -215,7 +221,7 @@ router.post('/MultiplePdfCluster', async (req, res, next) => {
     try {
         // Send request back to server
         res.sendStatus(200)
-
+        // console.log(executeFile)
         let request = executeFile.map(async (value, index) => {
             // Generate random file name
             let filename = `${Math.random().toString(36).substr(3)}_puppet_${index}_.pdf`
@@ -225,7 +231,7 @@ router.post('/MultiplePdfCluster', async (req, res, next) => {
             await pup.execute_task({
                 "html_template": html_template,
                 "filename": `/home/frappe/frappe-bench/sites/site1.local/public/files/${filename}`,
-                "config": jsonbody.print_config
+                "config": jsoncontent.print_config
             }).then(data => {
                 listoffile.push(`/home/frappe/frappe-bench/sites/site1.local/public/files/${filename}`)
             }).catch(error => {
@@ -256,18 +262,18 @@ router.post('/MultiplePdfCluster', async (req, res, next) => {
                     filename : mainFileName
                 }
 
-                await send_bulk_pdf_resp(jsonbody.document_id, body.status, body.filename)
+                await send_bulk_pdf_resp(jsoncontent.document_id, body.status, body.filename)
                 console.log("Send Succesnfully")
             }).catch(async (error) => {
                 // console.log(error)
                 // res.send('Please try again later').status(400)
-
+                console.log(error)
                 let body = {
                     status : 'Failed',
                     error_message : 'Unable to create PDF. PDF Function failed'
                 }
 
-                await send_bulk_pdf_resp(jsonbody.document_id, body.status, body.error_message)
+                await send_bulk_pdf_resp(jsoncontent.document_id, body.status, body.error_message)
                 console.log("Send Failed")
             })
         })
@@ -278,7 +284,7 @@ router.post('/MultiplePdfCluster', async (req, res, next) => {
             error_message : 'Function outside has failed'
         }
         console.log("Send Failed")
-        await send_bulk_pdf_resp(jsonbody.document_id, body.status, body.error_message)
+        await send_bulk_pdf_resp(jsoncontent.document_id, body.status, body.error_message)
     }
 
 })
@@ -341,7 +347,7 @@ router.get('/', async(req, res, next) => {
         if (data.code == 200){
             // Unserialize data
             let json_data = JSON.parse(data.data.message)
-            console.log(json_data)
+            // console.log(json_data)
             await init(json_data.final_template,json_data.print_config).then(data => {
                 res.set('Content-Type', 'application/pdf')
                 res.send(data);
